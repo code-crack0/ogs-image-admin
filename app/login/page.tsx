@@ -25,19 +25,17 @@ export default function LoginPage() {
   }
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    startTransition(() => {
-      const formData = new FormData(event.currentTarget)
-      if (isLogin) {
-        checkRole(formData).then((res) => {
-          if(res){
-            login(formData)
-          }
-        }
-      )
-      } else {
-        signup(formData)
+    const formData = new FormData(event.currentTarget)
+    checkRole(formData).then((res) => {
+      if(res){
+        startTransition(() => {
+          login(formData)
+        
+        })
       }
-    })
+    }
+  )
+    
   }
 
   return (

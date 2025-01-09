@@ -16,6 +16,8 @@ import {
 import { Menu, Transition } from "@headlessui/react";
 import { Fragment } from "react";
 import Link from "next/link";
+import { checkPermission } from "@/lib/checkPermission";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function Dashboard() {
   const router = useRouter();
@@ -29,7 +31,7 @@ export default function Dashboard() {
   const [sortOrder, setSortOrder] = useState("desc");
   const [userName, setUserName] = useState("User");
   const [authLoading, setAuthLoading] = useState(true);
-
+  const [userEmail, setUserEmail] = useState("");
   useEffect(() => {
     const checkAuth = async () => {
       setAuthLoading(true);
@@ -38,6 +40,7 @@ export default function Dashboard() {
         router.push("/login");
       } else {
         setUserName(data.user.user_metadata?.name || "User");
+        setUserEmail(data?.user?.email || "");
         fetchFolders(sortOrder);
       }
       setAuthLoading(false);
@@ -78,6 +81,12 @@ export default function Dashboard() {
 
   const handleCreateFolder = async () => {
     if (!newFolderName.trim()) return;
+
+    const result = await checkPermission(userEmail,"create");
+    if(!result){
+      toast.error("You do not have permission to create a folder");
+      return;
+    }
 
     setLoading(true);
     const { data, error } = await supabase
@@ -136,6 +145,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50 w-full">
+      <Toaster position="top-right" />
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-5 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-semibold text-gray-800">Hello, {userName}</h1>

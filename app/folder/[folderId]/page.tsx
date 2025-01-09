@@ -2,13 +2,16 @@
 
 import { useRouter, useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { createClient } from '@/utils/supabase/client';
 import ImageViewer from 'react-simple-image-viewer';
 import { FolderIcon, PencilIcon, TrashIcon, PlayIcon } from '@heroicons/react/24/outline';
+import { checkPermission } from '@/lib/checkPermission';
+import toast, { Toaster } from "react-hot-toast";
 
 export default function FolderDetail() {
   const router = useRouter();
   const { folderId } = useParams();
+  const supabase = createClient();
 
   const [folderName, setFolderName] = useState('');
   const [images, setImages] = useState<any[]>([]);
@@ -17,13 +20,25 @@ export default function FolderDetail() {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [userEmail, setUserEmail] = useState("");
 
   useEffect(() => {
-    if (folderId) {
-      fetchFolderDetails();
-      fetchImages();
-    }
-  }, [folderId]);
+    const checkAuth = async () => {
+      setAuthLoading(true);
+      const { data } = await supabase.auth.getUser();
+      if (!data?.user) {
+        router.push("/login");
+      } else {
+        setUserEmail(data?.user?.email || "");
+        fetchFolderDetails();
+        fetchImages();
+      }
+      setAuthLoading(false);
+    };
+
+    checkAuth();
+  }, [router, supabase, folderId]);
 
   const fetchFolderDetails = async () => {
     const { data, error } = await supabase.from('folders').select('*').eq('id', folderId).single();
@@ -45,6 +60,11 @@ export default function FolderDetail() {
 
   const uploadImageToSupabase = async (file: File) => {
     try {
+      const result = await checkPermission(userEmail, "upload_image");
+      if (!result) {
+        toast.error("You do not have permission to upload images");
+        return;
+      }
       setLoading(true);
       const fileName = `${Date.now()}_${file.name}`;
       const { data, error } = await supabase.storage.from('images').upload(`folder_${folderId}/${fileName}`, file);
@@ -67,32 +87,32 @@ export default function FolderDetail() {
       setLoading(false);
     }
   };
+
   const deleteImage = async (imageId: string, imageUri: string) => {
     if (!confirm('Are you sure you want to delete this image?')) return;
-  
+
     try {
+      const result = await checkPermission(userEmail, "delete_image");
+      if (!result) {
+        toast.error("You do not have permission to delete images");
+        return;
+      }
       setLoading(true);
-  
-      // Extract the file path from the URI
+
       const filePath = imageUri.split('/').slice(-2).join('/');
-  
-      // Delete the file from Supabase storage
       const { error: storageError } = await supabase.storage.from('images').remove([filePath]);
-  
+
       if (storageError) {
         console.error('Error deleting file from storage:', storageError.message);
         return;
       }
-  
-      // Delete the image record from the database
+
       const { error: dbError } = await supabase.from('images').delete().eq('id', imageId);
-  
       if (dbError) {
         console.error('Error deleting image from database:', dbError.message);
         return;
       }
-  
-      // Update the images state
+
       setImages((prevImages) => prevImages.filter((image) => image.id !== imageId));
     } catch (error: any) {
       console.error('Error deleting image:', error.message);
@@ -100,22 +120,36 @@ export default function FolderDetail() {
       setLoading(false);
     }
   };
-  
+
   const handleRenameFolder = async () => {
     if (!newFolderName.trim()) return;
-    const { error } = await supabase.from('folders').update({ name: newFolderName }).eq('id', folderId);
-    if (error) {
+    try {
+      const result = await checkPermission(userEmail, "rename_folder");
+      if (!result) {
+        toast.error("You do not have permission to rename folders");
+        return;
+      }
+      const { error } = await supabase.from('folders').update({ name: newFolderName }).eq('id', folderId);
+      if (error) {
+        console.error('Error renaming folder:', error.message);
+        return;
+      }
+      setFolderName(newFolderName);
+      setNewFolderName('');
+      setIsRenaming(false);
+    } catch (error: any) {
       console.error('Error renaming folder:', error.message);
-      return;
     }
-    setFolderName(newFolderName);
-    setNewFolderName('');
-    setIsRenaming(false);
   };
 
   const deleteFolder = async () => {
     if (!confirm('Are you sure you want to delete this folder and all its contents?')) return;
     try {
+      const result = await checkPermission(userEmail, "delete_folder");
+      if (!result) {
+        toast.error("You do not have permission to delete folders");
+        return;
+      }
       setLoading(true);
 
       const { data } = await supabase.storage.from('images').list(`folder_${folderId}`);
@@ -136,8 +170,17 @@ export default function FolderDetail() {
     }
   };
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto p-4 max-w-6xl">
+      <Toaster position='top-right'/>
       <div className="mb-8 flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <FolderIcon className="h-8 w-8 text-blue-500" />
