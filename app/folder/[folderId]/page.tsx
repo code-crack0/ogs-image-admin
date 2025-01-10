@@ -60,7 +60,7 @@ export default function FolderDetail() {
 
   const uploadImageToSupabase = async (file: File) => {
     try {
-      const result = await checkPermission(userEmail, "upload_image");
+      const result = await checkPermission(userEmail, "upload");
       if (!result) {
         toast.error("You do not have permission to upload images");
         return;
@@ -92,7 +92,7 @@ export default function FolderDetail() {
     if (!confirm('Are you sure you want to delete this image?')) return;
 
     try {
-      const result = await checkPermission(userEmail, "delete_image");
+      const result = await checkPermission(userEmail, "delete");
       if (!result) {
         toast.error("You do not have permission to delete images");
         return;
@@ -124,11 +124,6 @@ export default function FolderDetail() {
   const handleRenameFolder = async () => {
     if (!newFolderName.trim()) return;
     try {
-      const result = await checkPermission(userEmail, "rename_folder");
-      if (!result) {
-        toast.error("You do not have permission to rename folders");
-        return;
-      }
       const { error } = await supabase.from('folders').update({ name: newFolderName }).eq('id', folderId);
       if (error) {
         console.error('Error renaming folder:', error.message);
@@ -145,7 +140,7 @@ export default function FolderDetail() {
   const deleteFolder = async () => {
     if (!confirm('Are you sure you want to delete this folder and all its contents?')) return;
     try {
-      const result = await checkPermission(userEmail, "delete_folder");
+      const result = await checkPermission(userEmail, "delete");
       if (!result) {
         toast.error("You do not have permission to delete folders");
         return;
